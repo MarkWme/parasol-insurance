@@ -1,4 +1,34 @@
 #!/bin/bash
+
+user_count=$(oc get namespaces | grep showroom | wc -l)
+
+# create fake showroom users
+if [[ $user_count == "0" ]]; then
+for i in $(seq 1 25);
+do
+    htpasswd -c -B -b users.htpasswd $i openshift
+    oc create namespace showroom-user$i
+done
+
+oc create secret generic htpass-secret --from-file=htpasswd=users.htpasswd -n openshift-config
+
+
+cat << EOF | oc apply -f -
+apiVersion: config.openshift.io/v1
+kind: OAuth
+metadata:
+  name: cluster
+spec:
+  identityProviders:
+  - name: my_htpasswd_provider
+    mappingMethod: claim
+    type: HTPasswd
+    htpasswd:
+      fileData:
+        name: htpass-secret
+EOF
+fi
+
 # Get user count
 user_count=$(oc get namespaces | grep showroom | wc -l)
 
@@ -494,7 +524,7 @@ spec:
         args:
         - -ec
         - |-
-          pod_name=\$(oc get pods --selector=app=$WORKBENCH_NAME -o jsonpath='{.items[0].metadata.name}') && oc exec \$pod_name -- git clone https://github.com/rh-aiservices-bu/parasol-insurance
+          pod_name=\$(oc get pods --selector=app=$WORKBENCH_NAME -o jsonpath='{.items[0].metadata.name}') && oc exec \$pod_name -- git clone https://github.com/paulczar/parasol-insurance
       restartPolicy: Never
 EOF
 
